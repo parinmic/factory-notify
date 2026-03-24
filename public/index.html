@@ -1,0 +1,421 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="theme-color" content="#1a73e8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="รถโรงงาน" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <title>รายงานรถโหลดสินค้าโรงงานพระพุทธบาท</title>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html { font-size: 20px; }
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        background: #f0f2f5;
+        min-height: 100vh;
+        padding-bottom: 32px;
+      }
+      .header {
+        background: linear-gradient(135deg, #1a73e8, #0d47a1);
+        color: #fff;
+        padding: 18px 16px;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      }
+      .header-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+      .header-title { font-size: 0.9rem; font-weight: 700; line-height: 1.4; }
+      .header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+      .btn-header {
+        background: rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.4);
+        color: #fff;
+        border-radius: 24px;
+        padding: 10px 14px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+        transition: background 0.15s;
+      }
+      .btn-header:active  { background: rgba(255,255,255,0.35); }
+      .btn-header.loading { opacity: 0.6; pointer-events: none; }
+      .btn-header.push-on { background: rgba(34,187,119,0.4); border-color: rgba(34,187,119,0.8); }
+      .status-bar { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 10px 16px; }
+      .status-text       { font-size: 0.75rem; color: #555; }
+      .status-text.error { color: #d32f2f; }
+      .status-text.ok    { color: #2e7d32; }
+      .push-banner {
+        margin: 10px 12px;
+        background: #fff8e1;
+        border: 1px solid #ffe082;
+        border-radius: 14px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .push-banner-text { font-size: 0.8rem; color: #5d4037; line-height: 1.5; }
+      .push-banner-btn {
+        background: #1a73e8; color: #fff; border: none;
+        border-radius: 20px; padding: 10px 16px;
+        font-size: 0.8rem; font-weight: 700;
+        cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      }
+      .toolbar { padding: 14px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .toolbar label { font-size: 0.9rem; color: #555; white-space: nowrap; }
+      .toolbar select {
+        border: 1px solid #ddd; border-radius: 24px;
+        padding: 10px 16px; font-size: 0.9rem;
+        background: #fff; color: #333; cursor: pointer;
+        flex: 1; max-width: 280px;
+      }
+      .count-badge {
+        margin-left: auto; background: #1a73e8; color: #fff;
+        border-radius: 24px; padding: 6px 14px;
+        font-size: 0.8rem; font-weight: 600; white-space: nowrap;
+      }
+      .list-wrap { padding: 0 12px; }
+      .card {
+        background: #fff; border-radius: 18px;
+        margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden;
+      }
+      .card.new { box-shadow: 0 0 0 3px #22bb77, 0 2px 8px rgba(34,187,119,0.15); }
+      .card-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 16px 18px 12px; border-bottom: 1px solid #f0f0f0; gap: 8px;
+      }
+      .plate { font-size: 1.4rem; font-weight: 800; color: #1a1a1a; }
+      .badge-new {
+        background: #e8f5e9; color: #2e7d32; border-radius: 20px;
+        padding: 4px 14px; font-size: 0.75rem; font-weight: 700; white-space: nowrap;
+      }
+      .card-body { padding: 6px 0; }
+      .field {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        gap: 12px; padding: 11px 18px; border-bottom: 1px solid #f5f5f5;
+      }
+      .field:last-child { border-bottom: none; }
+      .field-key { font-size: 0.8rem; color: #777; min-width: 150px; line-height: 1.4; padding-top: 2px; }
+      .field-val { font-size: 0.95rem; color: #1a1a1a; font-weight: 600; text-align: right; line-height: 1.4; }
+      .field-val.empty { color: #bbb; font-weight: 400; }
+      .temp-val { color: #e65100; font-weight: 700; }
+      .empty-state { text-align: center; padding: 60px 24px; color: #aaa; }
+      .empty-icon  { font-size: 56px; margin-bottom: 14px; }
+      .empty-text  { font-size: 1rem; }
+      .empty-sub   { font-size: 0.85rem; margin-top: 8px; color: #ccc; }
+      .toast {
+        position: fixed; bottom: 24px; left: 50%;
+        transform: translateX(-50%) translateY(120px);
+        background: #323232; color: #fff; border-radius: 28px;
+        padding: 16px 24px; font-size: 0.85rem; font-weight: 600;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.25); z-index: 999;
+        transition: transform 0.3s ease; max-width: 90vw;
+        text-align: center; cursor: pointer; line-height: 1.5;
+      }
+      .toast.show    { transform: translateX(-50%) translateY(0); }
+      .toast.success { background: #2e7d32; }
+      .toast.error   { background: #c62828; }
+      .toast.info    { background: #1a73e8; }
+      @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+      .spinning { display: inline-block; animation: spin 1s linear infinite; }
+    </style>
+  </head>
+  <body>
+
+    <div class="header">
+      <div class="header-top">
+        <div class="header-title" id="headerTitle">รายงานรถโหลดสินค้าโรงงานพระพุทธบาท</div>
+        <div class="header-actions">
+          <button class="btn-header" id="pushBtn" onclick="togglePush()">🔔 แจ้งเตือน</button>
+          <button class="btn-header" id="refreshBtn" onclick="loadData()">
+            <span id="refreshIcon">🔄</span> รีเฟรช
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-text" id="status">กำลังโหลด…</div>
+    </div>
+
+    <div class="push-banner" id="pushBanner" style="display:none">
+      <div class="push-banner-text">🔔 เปิดการแจ้งเตือน<br>รับข้อมูลรถใหม่แม้ปิดหน้าจอ</div>
+      <button class="push-banner-btn" onclick="togglePush()">เปิดเลย</button>
+    </div>
+
+    <div class="toolbar">
+      <label>ทะเบียนรถ</label>
+      <select id="plateFilter" onchange="applyFilter()">
+        <option value="">-- ทั้งหมด --</option>
+      </select>
+      <div class="count-badge" id="countBadge" style="display:none"></div>
+    </div>
+
+    <div class="list-wrap" id="list"></div>
+    <div class="toast" id="toast" onclick="dismissToast()"></div>
+
+    <script>
+      const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEhuceqWIkFHC0uN1R9eyGKdFukJEPR2Il0LHetkCrziRWg5FEP18f3uD_AQvk6ZF43w/exec';
+
+      const FIREBASE_CONFIG = {
+        apiKey           : 'AIzaSyCiaaGvOkrllRo8CJjfRjmxJrZKtqZsKMA',
+        authDomain       : 'factory-notify.firebaseapp.com',
+        projectId        : 'factory-notify',
+        storageBucket    : 'factory-notify.firebasestorage.app',
+        messagingSenderId: '962396303104',
+        appId            : '1:962396303104:web:a6206d8c4147fb4a1f4de5',
+      };
+      const VAPID_KEY = 'BN7EizmWoVvBcb3gokjPJf2rbBAGJx-8gxRX0SXEx3rKg-n2xDKSPxAqDF5uDlwI3-jsrgXbT48f9CAhjgdGzIc';
+
+      const LABELS = [
+        { key: 'B', label: 'เวลาเข้าโรงงาน',               isTime: true  },
+        { key: 'C', label: 'เวลาเข้าโหลด (ชิ้นส่วน)',      isTime: true  },
+        { key: 'D', label: 'อุณหภูมิก่อนโหลดชิ���นส่วน',    isTemp: true  },
+        { key: 'E', label: 'เวลาเข้าโหลด (เครื่องใน/ซีก)', isTime: true  },
+        { key: 'F', label: 'อุณหภูมิก่อนโหลดเครื่องใน',   isTemp: true  },
+        { key: 'G', label: 'เวลาออกโรงงาน',                isTime: true  },
+        { key: 'H', label: 'อุณหภูมิรถออกโรงงาน',         isTemp: true  },
+      ];
+
+      let pollingTimer = null;
+      let toastTimer   = null;
+      let allItems     = [];
+      let messaging    = null;
+      let pushEnabled  = false;
+
+      function initFirebase() {
+        try {
+          firebase.initializeApp(FIREBASE_CONFIG);
+          messaging = firebase.messaging();
+          messaging.onMessage(payload => {
+            const n = payload.notification || {};
+            showToast('🚛 ' + (n.title||'') + '\n' + (n.body||''), 'info');
+            try { navigator.vibrate && navigator.vibrate([200,100,200]); } catch(e){}
+            loadData();
+          });
+        } catch(e) { console.error('Firebase init:', e); }
+      }
+
+      async function enablePush() {
+        try {
+          if (!('Notification' in window)) {
+            showToast('❌ เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน', 'error');
+            return false;
+          }
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') {
+            showToast('❌ กรุณาอนุญาตการแจ้งเตือนในการตั้งค่า', 'error');
+            return false;
+          }
+          const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          await navigator.serviceWorker.ready;
+          const token = await messaging.getToken({
+            vapidKey: VAPID_KEY,
+            serviceWorkerRegistration: reg,
+          });
+          if (!token) {
+            showToast('❌ ไม่สามารถขอ Push Token ได้', 'error');
+            return false;
+          }
+          await fetch(APPS_SCRIPT_URL + '?action=saveToken&token=' + encodeURIComponent(token));
+          localStorage.setItem('pushEnabled', '1');
+          return true;
+        } catch(e) {
+          console.error('enablePush:', e);
+          showToast('❌ ' + e.message, 'error');
+          return false;
+        }
+      }
+
+      async function togglePush() {
+        const btn    = document.getElementById('pushBtn');
+        const banner = document.getElementById('pushBanner');
+        if (pushEnabled) {
+          pushEnabled = false;
+          localStorage.removeItem('pushEnabled');
+          btn.innerHTML = '🔔 แจ้งเตือน';
+          btn.classList.remove('push-on');
+          banner.style.display = 'none';
+          showToast('🔕 ปิดการแจ้งเตือนแล้ว');
+        } else {
+          btn.innerHTML = '⏳ กำลังตั้งค่า…';
+          btn.classList.add('loading');
+          const ok = await enablePush();
+          btn.classList.remove('loading');
+          if (ok) {
+            pushEnabled = true;
+            btn.innerHTML = '🔕 ปิดแจ้งเตือน';
+            btn.classList.add('push-on');
+            banner.style.display = 'none';
+            showToast('✅ เปิดการแจ้งเตือนแล้ว!', 'success');
+          } else {
+            btn.innerHTML = '🔔 แจ้งเตือน';
+          }
+        }
+      }
+
+      async function loadData(highlightRow) {
+        const btn  = document.getElementById('refreshBtn');
+        const icon = document.getElementById('refreshIcon');
+        setStatus('กำลังโหลด…');
+        btn.classList.add('loading');
+        icon.classList.add('spinning');
+        try {
+          const res  = await fetch(APPS_SCRIPT_URL + '?action=getLatest&limit=50');
+          const data = await res.json();
+          btn.classList.remove('loading');
+          icon.classList.remove('spinning');
+          if (data.error) { setStatus('❌ ' + data.error, 'error'); return; }
+          allItems = data.items || [];
+          populatePlateFilter(allItems);
+          applyFilter(highlightRow);
+          setStatus('✅ อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH'), 'ok');
+        } catch(e) {
+          btn.classList.remove('loading');
+          icon.classList.remove('spinning');
+          setStatus('❌ ' + e.message, 'error');
+        }
+      }
+
+      async function checkNew() {
+        try {
+          const res  = await fetch(APPS_SCRIPT_URL + '?action=checkNew');
+          const data = await res.json();
+          if (data.hasNew && data.latestItem) {
+            try { navigator.vibrate && navigator.vibrate([200,100,200]); } catch(e){}
+            showToast('🚛 รถใหม่! ทะเบียน: ' + (data.latestItem.A||'-'), 'info');
+            loadData(data.latestRow);
+            fetch(APPS_SCRIPT_URL + '?action=ack&row=' + data.latestRow);
+          }
+        } catch(e) { console.error('checkNew:', e); }
+      }
+
+      function startPolling() {
+        if (pollingTimer) clearInterval(pollingTimer);
+        pollingTimer = setInterval(checkNew, 15000);
+      }
+
+      function setHeaderDate() {
+        const d = new Date().toLocaleDateString('th-TH', {
+          year: 'numeric', month: 'long', day: 'numeric'
+        });
+        document.getElementById('headerTitle').textContent =
+          'รายงานรถโหลดสินค้าโรงงานพระพุทธบาท ' + d;
+      }
+
+      function setStatus(msg, type) {
+        const el = document.getElementById('status');
+        el.textContent = msg;
+        el.className   = 'status-text' + (type ? ' '+type : '');
+      }
+
+      function fmtTime(v) {
+        if (!v) return null;
+        const m = String(v).match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+        return m ? m[1] : String(v);
+      }
+      function fmt(v, isTime) {
+        if (v===null||v===undefined||v==='') return null;
+        return isTime ? fmtTime(v) : String(v);
+      }
+
+      function showToast(msg, type) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className   = 'toast show' + (type ? ' '+type : '');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(dismissToast, 5000);
+      }
+      function dismissToast() {
+        document.getElementById('toast').classList.remove('show');
+      }
+
+      function populatePlateFilter(items) {
+        const sel     = document.getElementById('plateFilter');
+        const current = sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        [...new Set(items.map(it => String(it.A||'')).filter(Boolean))].forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p; opt.textContent = p; sel.appendChild(opt);
+        });
+        sel.value = sel.querySelector(`option[value="${current}"]`) ? current : '';
+      }
+
+      function applyFilter(highlightRow) {
+        const plate = document.getElementById('plateFilter').value;
+        renderItems(
+          plate ? allItems.filter(it => String(it.A||'') === plate) : allItems,
+          highlightRow
+        );
+      }
+
+      function renderItems(items, highlightRow) {
+        const el    = document.getElementById('list');
+        const badge = document.getElementById('countBadge');
+        el.innerHTML = '';
+        if (!items || !items.length) {
+          badge.style.display = 'none';
+          el.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">📭</div>
+              <div class="empty-text">ยังไม่มีรายการที่พร้อม</div>
+              <div class="empty-sub">รอข้อมูลในคอลัมน์ G</div>
+            </div>`;
+          return;
+        }
+        badge.style.display = '';
+        badge.textContent   = items.length + ' ��ายการ';
+        items.forEach(it => {
+          const isNew = highlightRow && it.rowNumber === highlightRow;
+          const plate = String(it.A || '-');
+          const fieldsHtml = LABELS.map(f => {
+            const val      = fmt(it[f.key], f.isTime);
+            const valClass = 'field-val' + (!val ? ' empty' : f.isTemp ? ' temp-val' : '');
+            return `<div class="field">
+              <div class="field-key">${f.label}</div>
+              <div class="${valClass}">${val || '-'}</div>
+            </div>`;
+          }).join('');
+          const card = document.createElement('div');
+          card.className = 'card' + (isNew ? ' new' : '');
+          card.innerHTML = `
+            <div class="card-header">
+              <div class="plate">🚗 ${plate}</div>
+              ${isNew ? '<div class="badge-new">🟢 ใหม่</div>' : ''}
+            </div>
+            <div class="card-body">${fieldsHtml}</div>`;
+          el.appendChild(card);
+        });
+      }
+
+      // INIT
+      setHeaderDate();
+      initFirebase();
+      loadData();
+      startPolling();
+
+      if (localStorage.getItem('pushEnabled') !== '1') {
+        setTimeout(() => {
+          document.getElementById('pushBanner').style.display = 'flex';
+        }, 2000);
+      } else {
+        pushEnabled = true;
+        document.getElementById('pushBtn').innerHTML = '🔕 ปิดแจ้งเตือน';
+        document.getElementById('pushBtn').classList.add('push-on');
+        enablePush();
+      }
+    </script>
+  </body>
+</html>
